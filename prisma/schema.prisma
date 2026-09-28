@@ -1,0 +1,199 @@
+// Prisma schema for Real-Time Collaborative Workspace
+// Compatible with PostgreSQL and SQLite
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum WorkspaceRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum NotificationType {
+  MENTION
+  INVITE
+  COMMENT
+  DOCUMENT
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String
+  name             String
+  avatar           String?
+  color            String            @default("#2563eb")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  workspacesOwned  Workspace[]       @relation("WorkspaceOwner")
+  memberships      WorkspaceMember[]
+  documentsCreated Document[]        @relation("DocumentCreator")
+  documentsEdited  Document[]        @relation("DocumentModifier")
+  comments         Comment[]
+  commentReplies   CommentReply[]
+  notifications    Notification[]
+  activities       Activity[]
+  sessions         Session[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  icon        String?           @default("📁")
+  ownerId     String
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  members     WorkspaceMember[]
+  documents   Document[]
+  folders     Folder[]
+  invitations Invitation[]
+  activities  Activity[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(EDITOR)
+  joinedAt    DateTime      @default(now())
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Folder {
+  id          String     @id @default(uuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  icon        String?    @default("📁")
+  createdAt   DateTime   @default(now())
+
+  documents   Document[]
+
+  @@map("folders")
+}
+
+model Document {
+  id               String      @id @default(uuid())
+  workspaceId      String
+  workspace        Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folderId         String?
+  folder           Folder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  title            String      @default("Untitled Document")
+  content          String      @db.Text
+  icon             String?     @default("📄")
+  isFavorite       Boolean     @default(false)
+  isTrash          Boolean     @default(false)
+  version          Int         @default(1)
+  createdById      String
+  createdBy        User        @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lastModifiedById String
+  lastModifiedBy   User        @relation("DocumentModifier", fields: [lastModifiedById], references: [id], onDelete: Cascade)
+  lastModifiedAt   DateTime    @default(now())
+  createdAt        DateTime    @default(now())
+
+  comments         Comment[]
+  activities       Activity[]
+
+  @@map("documents")
+}
+
+model Comment {
+  id           String         @id @default(uuid())
+  documentId   String
+  document     Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content      String         @db.Text
+  selectedText String?        @db.Text
+  resolved     Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  replies      CommentReply[]
+
+  @@map("comments")
+}
+
+model CommentReply {
+  id        String   @id @default(uuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("comment_replies")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String           @db.Text
+  link      String
+  read      Boolean          @default(false)
+  type      NotificationType @default(MENTION)
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model Activity {
+  id          String     @id @default(uuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documentId  String?
+  document    Document?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  details     String
+  timestamp   DateTime   @default(now())
+
+  @@map("activities")
+}
+
+model Invitation {
+  id          String        @id @default(uuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String
+  role        WorkspaceRole @default(EDITOR)
+  token       String        @unique
+  status      String        @default("pending") // pending | accepted | declined
+  createdAt   DateTime      @default(now())
+
+  @@map("invitations")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}

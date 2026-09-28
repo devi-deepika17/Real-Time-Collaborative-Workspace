@@ -1,0 +1,6 @@
+{
+  "name": "CollabSpace - Real-Time Collaborative Workspace",
+  "description": "A modern real-time collaborative workspace featuring rich-text editing, live presence, multi-user cursors, comments, role-based access, and instant synchronization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
